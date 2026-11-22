@@ -1,0 +1,21 @@
+# One entry per process. The UI registry is built from every `kind: module` entry.
+# Only simple "key: value" lines (no inline comments) - parsed by common/services.py.
+services:
+  claim_parser:
+    kind: service
+    port: 8100
+    env: services/claim_parser/requirements.txt
+    start: python services/claim_parser/api.py
+  powerlink:
+    kind: module
+    display_name: PowerLink
+    port: 8101
+    env: modules/powerlink/environment.yml
+    start: conda run --no-capture-output -n kgx-powerlink python modules/powerlink/api.py
+  # Other teammates add their modules here, e.g.:
+  # expath:
+  #   kind: module
+  #   display_name: ExPath
+  #   port: 8102
+  #   env: modules/expath/environment.yml
+  #   start: conda run --no-capture-output -n kgx-expath python modules/expath/api.py

@@ -1,0 +1,21 @@
+name: kgx-powerlink
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+      # CPU install, per the PowerLink README ("drop the +cuXXX suffix"). For a GPU, replace these two
+      # lines with the README's cu102 / cu113 commands (they need the extra index URLs listed there).
+      - torch==1.12.1
+      - dgl==0.9.1
+      - numpy>=1.23,<2
+      - scipy>=1.9,<2
+      - scikit-learn>=1.1
+      - networkx>=2.8
+      - matplotlib>=3.5
+      - tqdm>=4.64
+      - pyyaml>=6
+      - pandas
+      - rdflib
+      - pytz
