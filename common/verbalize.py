@@ -3,6 +3,15 @@
 The claim parser (services/claim_parser) deliberately does NOT import these templates, so
 evaluation is not a trivial round trip. Relation names below that do not occur in a dataset are
 simply unused; unlisted relations fall back to a generic sentence.
+
+`disambiguated_labels` is the one thing here the parser DOES share, and deliberately so. 31% of
+WN18RR entities share a lemma once the synset definition is dropped ("run" names 33 synsets), so a
+claim written from the bare lemma cannot identify which synset it means - the information is not in
+the text at any price, and no parser can recover it. Appending a short gloss to ambiguous lemmas
+only ("response (a result or reply)") puts it back. That is a convention about how entities are
+named, not a sentence template: both sides agree on entity surface forms, while the parser still
+has to work out the relation and the direction on its own. State it as an assumption when
+reporting WN18RR claim-verification numbers.
 """
 import random
 from typing import Optional
@@ -54,3 +63,20 @@ def verbalize(head_label: str, relation: str, tail_label: str,
     else:
         sentence = f"The {humanize_relation(relation)} of {head_label} is {tail_label}."
     return sentence[0].upper() + sentence[1:]
+
+
+def disambiguated_labels(entity_labels: dict[str, str],
+                         entity_descriptions: dict[str, str]) -> dict[str, str]:
+    """ID -> surface form, adding " (gloss)" only where the plain label is shared by several IDs.
+
+    Unambiguous labels are returned untouched, so FB15k-237 (which ships no descriptions) and the
+    readable part of WN18RR are unaffected.
+    """
+    collisions: dict[str, int] = {}
+    for label in entity_labels.values():
+        collisions[label] = collisions.get(label, 0) + 1
+    out: dict[str, str] = {}
+    for ent, label in entity_labels.items():
+        gloss = entity_descriptions.get(ent, "")
+        out[ent] = f"{label} ({gloss})" if collisions[label] > 1 and gloss else label
+    return out

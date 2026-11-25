@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common.datasets.base import KnowledgeGraph, load_graph  # noqa: E402
 from common.paths import claims_dir  # noqa: E402
 from common.schema import Triple  # noqa: E402
-from common.verbalize import verbalize  # noqa: E402
+from common.verbalize import disambiguated_labels, verbalize  # noqa: E402
 
 
 def build_pools(train: list[Triple]) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
@@ -52,7 +52,10 @@ def generate(kg: KnowledgeGraph, split: str, n: int, neg_per_pos: int, seed: int
     rng.shuffle(triples)
     known = set(kg.train) | set(kg.valid) | set(kg.test)
     head_pool, tail_pool = build_pools(kg.train)
-    label = kg.entity_labels.get
+    # Ambiguous lemmas get a parenthetical gloss, so the claim text actually identifies the
+    # entity it was generated from (see common/verbalize.disambiguated_labels).
+    surfaces = disambiguated_labels(kg.entity_labels, kg.entity_descriptions)
+    label = surfaces.get
 
     def readable(x: str) -> bool:
         return not require_labels or label(x, x) != x

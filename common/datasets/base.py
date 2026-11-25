@@ -1,5 +1,5 @@
 """Dataset adapter layer: KnowledgeGraph, LabeledClaim, ClaimSource (HANDOFF.md section 4)."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Iterable, Literal, Protocol
 
 from common.schema import Triple
@@ -19,6 +19,9 @@ class KnowledgeGraph:
     # head -> [(relation, tail)] plus inverse edges (relation + INVERSE_SUFFIX).
     # Built from the TRAIN split only, so held-out facts never leak into reasoning.
     neighbors: dict[str, list[tuple[str, str]]]
+    # ID -> one-line gloss, where the dataset ships one (WN18RR synset definitions). Used only to
+    # tell apart entities whose label collides; empty for datasets with no description file.
+    entity_descriptions: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass

@@ -12,10 +12,16 @@ services:
     port: 8101
     env: modules/powerlink/environment.yml
     start: conda run --no-capture-output -n kgx-powerlink python modules/powerlink/api.py
+  anyburl_safran:
+    kind: module
+    display_name: AnyBURL+SAFRAN
+    port: 8102
+    env: modules/anyburl_safran/environment.yml
+    start: python modules/anyburl_safran/api.py
   # Other teammates add their modules here, e.g.:
   # expath:
   #   kind: module
   #   display_name: ExPath
-  #   port: 8102
+  #   port: 8103
   #   env: modules/expath/environment.yml
   #   start: conda run --no-capture-output -n kgx-expath python modules/expath/api.py

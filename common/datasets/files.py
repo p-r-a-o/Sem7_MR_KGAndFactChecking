@@ -13,6 +13,9 @@ class DatasetSpec:
     name: str
     label_file: str = "entity2text.txt"          # optional "<id>\t<name>" file inside data/<name>/
     clean_label: Callable[[str], str] = str.strip
+    # Optional second reading of the same label line, pulling out a short gloss (WN18RR stores
+    # "<lemma>, <definition>"). Returns "" when the dataset has nothing to offer.
+    gloss: Callable[[str], str] = lambda _text: ""
 
 
 def read_triples(path: Path) -> list[Triple]:
@@ -26,17 +29,23 @@ def read_triples(path: Path) -> list[Triple]:
     return triples
 
 
-def read_labels(path: Path, clean: Callable[[str], str]) -> dict[str, str]:
-    """Read "<id>\t<text>" lines. Missing file -> empty dict (IDs are then used as labels)."""
+def read_labels(path: Path, clean: Callable[[str], str],
+                gloss: Optional[Callable[[str], str]] = None) -> tuple[dict[str, str], dict[str, str]]:
+    """Read "<id>\t<text>" lines into (labels, glosses). Missing file -> two empty dicts."""
     if not path.exists():
-        return {}
+        return {}, {}
     labels: dict[str, str] = {}
+    glosses: dict[str, str] = {}
     with open(path, encoding="utf-8") as f:
         for line in f:
             parts = line.rstrip("\r\n").split("\t")
             if len(parts) >= 2 and parts[1].strip():
                 labels[parts[0]] = clean(parts[1])
-    return labels
+                if gloss is not None:
+                    text = gloss(parts[1])
+                    if text:
+                        glosses[parts[0]] = text
+    return labels, glosses
 
 
 def build_neighbors(triples: list[Triple]) -> dict[str, list[tuple[str, str]]]:
@@ -50,7 +59,7 @@ def build_neighbors(triples: list[Triple]) -> dict[str, list[tuple[str, str]]]:
 def build_knowledge_graph(spec: DatasetSpec, root: Optional[Path] = None) -> KnowledgeGraph:
     folder = (root or data_root()) / spec.name
     splits = {s: read_triples(folder / f"{s}.txt") for s in ("train", "valid", "test")}
-    labels = read_labels(folder / spec.label_file, spec.clean_label)
+    labels, glosses = read_labels(folder / spec.label_file, spec.clean_label, spec.gloss)
     entities = {x for ts in splits.values() for h, _, t in ts for x in (h, t)}
     return KnowledgeGraph(
         name=spec.name,
@@ -58,4 +67,5 @@ def build_knowledge_graph(spec: DatasetSpec, root: Optional[Path] = None) -> Kno
         entity_labels={e: labels.get(e, e) for e in sorted(entities)},
         relations=sorted({r for ts in splits.values() for _, r, _ in ts}),
         neighbors=build_neighbors(splits["train"]),
+        entity_descriptions={e: glosses[e] for e in sorted(entities) if e in glosses},
     )

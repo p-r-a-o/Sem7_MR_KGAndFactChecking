@@ -1,0 +1,9 @@
+# ONLY needed for the offline rule-mining step, which runs the AnyBURL jar and therefore needs a JDK.
+# Serving needs nothing but the standard library, so services.yaml starts api.py with plain `python`
+# and you can skip this env entirely if a JDK 11+ is already on PATH.
+name: kgx-anyburl
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - openjdk=17

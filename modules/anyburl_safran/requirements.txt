@@ -1,0 +1,2 @@
+# No Python dependencies: the module uses the stdlib only (see environment.yml for the JDK used by
+# the offline rule-mining step). Listed for symmetry with the other modules.

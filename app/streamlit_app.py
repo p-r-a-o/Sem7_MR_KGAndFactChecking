@@ -76,6 +76,9 @@ def lp_tab(module, kg: KnowledgeGraph) -> None:
                 res = module.predict_link(head, relation, tail, k)
         except ModuleError as e:
             return st.error(f"{e.code}: {e.message}")
+        if not res.predictions:
+            st.info("The module returned no candidates for this query "
+                    "(a rule-based module has no rule that fires here).")
         for i, p in enumerate(res.predictions, 1):
             with st.expander(f"#{i}  {label(kg, p.candidate)}   (score {p.score:.3f})", expanded=i == 1):
                 show_explanation(kg, p.explanation)
