@@ -1,4 +1,6 @@
-"""Tests for torch-free PowerLink wrapper logic. Run: python -m pytest tests/ (NOT YET RUN)."""
+"""Tests for torch-free PowerLink wrapper logic. Run: python -m pytest tests/.
+
+The torch/DGL side is covered by modules/powerlink/scripts/smoke_test.py."""
 import sys
 from pathlib import Path
 

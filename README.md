@@ -36,7 +36,7 @@ python eval/eval_cv.py --module PowerLink --dataset fb15k237 --split valid --n 2
 |------|-------|
 | `common/`, `services/claim_parser`, `scripts/`, `eval/`, `app/` | written; exercised end-to-end by the AnyBURL+SAFRAN module (data download, claim generation, both eval scripts, both HTTP endpoints) |
 | `modules/anyburl_safran/` | **run end-to-end on FB15k-237 and WN18RR**, LP + CV, tuned; see its README for measured numbers |
-| `modules/powerlink/` | written but NOT executed; see "Assumptions" in its README |
+| `modules/powerlink/` | integration-tested on a synthetic KG (`modules/powerlink/scripts/smoke_test.py`); not yet trained/evaluated on FB15k-237 or WN18RR, see its README |
 | `modules/expath/`, `modules/graph_rag/` | not started |
 
 ## Deviations from HANDOFF.md to confirm with the team

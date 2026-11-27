@@ -177,19 +177,27 @@ class PowerLinkModule:
     def _paths(self, src: int, rel_id: int, cand: int) -> Optional[list[list[core.Hop]]]:
         """Run PowerLink's explainer for the link (src, rel_id, cand); decode its paths. None on failure."""
         st, ex = self._need(), self.cfg.explainer
-        comp_g, paths, mask_dict = st.explainer.explain(
-            src_nid=self._tensor(src), tgt_nid=self._tensor(cand), rel_id=self._tensor(rel_id),
-            ghetero=st.mp_g, num_hops=ex.num_hops, prune_max_degree=ex.prune_max_degree, k_core=ex.k_core,
-            num_paths=ex.num_paths, max_path_length=ex.max_path_length, prune_graph=True,
-            without_path_loss=False, without_mi=False, return_mask=True,
-            regularisation_weight=ex.regularisation_weight, power_order=ex.power_order,
-            comp_g_size_limit=ex.comp_g_size_limit, pagelink=False, combination_method=ex.combination_method)
+        try:
+            comp_g, paths, mask_dict = st.explainer.explain(
+                src_nid=self._tensor(src), tgt_nid=self._tensor(cand), rel_id=self._tensor(rel_id),
+                ghetero=st.mp_g, num_hops=ex.num_hops, prune_max_degree=ex.prune_max_degree, k_core=ex.k_core,
+                num_paths=ex.num_paths, max_path_length=ex.max_path_length, prune_graph=True,
+                without_path_loss=False, without_mi=False, return_mask=True,
+                regularisation_weight=ex.regularisation_weight, power_order=ex.power_order,
+                comp_g_size_limit=ex.comp_g_size_limit, pagelink=False, combination_method=ex.combination_method)
+        finally:
+            st.explainer.all_loss.clear()  # explainer appends per-epoch losses forever; a long-lived service must not leak
         if comp_g is None or not paths:
             return None
+        mask = next(iter(mask_dict.values())).detach().cpu()
+        if torch.isnan(mask).any():
+            # Same check as the reference run_powerlink.py. Happens when sigmoid(score) underflows to 0
+            # (very implausible link): -log(0) = inf, so the mask gradients are NaN.
+            raise RuntimeError("edge mask diverged to NaN (the link's score is numerically zero)")
         comp_g = comp_g.to("cpu")
         src_l, dst_l = (x.tolist() for x in comp_g.edges())
         rels = [st.edge_type[e] for e in comp_g.edata[dgl.EID].tolist()]
-        weights = torch.sigmoid(next(iter(mask_dict.values())).detach().cpu()).tolist()
+        weights = torch.sigmoid(mask).tolist()
         if len(weights) != len(src_l):
             weights = [1.0] * len(src_l)
         pairs = core.pair_index(src_l, dst_l, rels, weights)
