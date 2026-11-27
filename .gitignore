@@ -7,6 +7,7 @@
 
 # Reference code and binaries fetched by the modules' setup scripts
 modules/powerlink/power-link/
+modules/expath/expath-ref/
 modules/anyburl_safran/*.jar
 modules/anyburl_safran/*-sources.zip
 

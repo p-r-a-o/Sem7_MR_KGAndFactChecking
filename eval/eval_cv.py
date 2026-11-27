@@ -8,34 +8,46 @@ Per-claim predictions are written as JSONL for error analysis.
 import argparse
 import itertools
 import json
+import random
 import sys
 import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common.datasets.base import get_claim_source  # noqa: E402
+from common.datasets.registry import SPECS  # noqa: E402
 from common.errors import ModuleError  # noqa: E402
 from common.metrics import classification_metrics  # noqa: E402
 from common.registry import build_registry  # noqa: E402
-from common.datasets.base import load_graph  # noqa: E402
+from common.datasets.base import KnowledgeGraph  # noqa: E402
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--module", required=True)
-    ap.add_argument("--dataset", required=True, choices=["fb15k237", "wn18rr"])
+    ap.add_argument("--dataset", required=True, choices=sorted(SPECS))
     ap.add_argument("--split", default="test", choices=["valid", "test"])
     ap.add_argument("--n", type=int, default=200, help="max claims")
     ap.add_argument("--nei-policy", default="miss", choices=["miss", "refuted"])
     ap.add_argument("--out", default=None, help="JSONL of per-claim predictions")
+    ap.add_argument("--shuffle-seed", type=int, default=None,
+                    help="sample --n claims at random instead of taking the first n (FactKG files are sorted by claim type)")
     args = ap.parse_args()
 
     module = build_registry()[args.module]
-    module.load(load_graph(args.dataset))
+    # The HTTP proxy only sends the dataset name, so skip building the graph client-side (FactKG's is
+    # several GB) and skip /load when the service already has this dataset in memory.
+    if module.health().get("loaded") != args.dataset:
+        module.load(KnowledgeGraph(name=args.dataset, train=[], valid=[], test=[], entity_labels={},
+                                   relations=[], neighbors={}))
 
     gold, pred, rows, unparsed, errors = [], [], [], 0, 0
     start = time.time()
-    for c in itertools.islice(get_claim_source(args.dataset).claims(args.split), args.n):
+    claims = get_claim_source(args.dataset).claims(args.split)
+    if args.shuffle_seed is not None:
+        claims = list(claims)
+        random.Random(args.shuffle_seed).shuffle(claims)
+    for c in itertools.islice(claims, args.n):
         try:
             res = module.verify_claim(c.claim)
         except ModuleError as e:
@@ -59,7 +71,8 @@ def main() -> None:
               "seconds": round(time.time() - start, 1), **classification_metrics(gold, pred, args.nei_policy)}
     print(json.dumps(report, indent=2))
     if args.out:
-        Path(args.out).write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + "\n")
+        Path(args.out).write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + "\n",
+                                  encoding="utf-8")
 
 
 if __name__ == "__main__":

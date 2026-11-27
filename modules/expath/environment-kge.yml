@@ -1,0 +1,16 @@
+# Only for training the KGE base model with the reference repo (GPU). Serving uses requirements.txt.
+name: kgx-expath-kge
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pytorch>=2.1
+  - pytorch-cuda=12.1
+  - numpy<2
+  - pandas
+  - pyyaml
+  - tqdm
+  - matplotlib
+  - scipy

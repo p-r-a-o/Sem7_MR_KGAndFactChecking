@@ -18,16 +18,16 @@ services:
     port: 8102
     env: modules/anyburl_safran/environment.yml
     start: python modules/anyburl_safran/api.py
+  expath:
+    kind: module
+    display_name: eXpath
+    port: 8103
+    env: modules/expath/requirements.txt
+    start: python modules/expath/api.py --show-known
   pyclause:
     kind: module
     display_name: PyClause
     port: 8104
     env: modules/pyclause/environment.yml
     start: conda run --no-capture-output -n kgx-pyclause python modules/pyclause/api.py
-  # Other teammates add their modules here, e.g.:
-  # expath:
-  #   kind: module
-  #   display_name: ExPath
-  #   port: 8103
-  #   env: modules/expath/environment.yml
-  #   start: conda run --no-capture-output -n kgx-expath python modules/expath/api.py
+  # Other teammates add their modules here.

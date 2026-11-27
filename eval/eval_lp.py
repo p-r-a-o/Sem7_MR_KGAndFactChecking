@@ -14,6 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common.datasets.base import load_graph  # noqa: E402
+from common.datasets.registry import SPECS  # noqa: E402
 from common.errors import ModuleError  # noqa: E402
 from common.metrics import rank_metrics  # noqa: E402
 from common.registry import build_registry  # noqa: E402
@@ -22,7 +23,7 @@ from common.registry import build_registry  # noqa: E402
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--module", required=True)
-    ap.add_argument("--dataset", required=True, choices=["fb15k237", "wn18rr"])
+    ap.add_argument("--dataset", required=True, choices=sorted(SPECS))
     ap.add_argument("--split", default="test", choices=["valid", "test"])
     ap.add_argument("--n", type=int, default=200)
     ap.add_argument("--k", type=int, default=10)

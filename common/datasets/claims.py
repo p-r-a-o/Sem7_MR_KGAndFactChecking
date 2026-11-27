@@ -22,5 +22,6 @@ class JsonlClaimSource:
             for line in f:
                 if line.strip():
                     d = json.loads(line)
-                    h, r, t = d["gold_triple"]
-                    yield LabeledClaim(claim=d["claim"], label=d["label"], gold_triple=(h, r, t))
+                    gold = d.get("gold_triple")
+                    yield LabeledClaim(claim=d["claim"], label=d["label"],
+                                       gold_triple=(gold[0], gold[1], gold[2]) if gold else None)

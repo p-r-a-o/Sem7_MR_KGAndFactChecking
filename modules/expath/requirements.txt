@@ -1,0 +1,3 @@
+# Serving + mining environment (python >= 3.10). torch is NOT needed here.
+numpy>=1.23
+scipy>=1.9
