@@ -1,0 +1,4 @@
+# For a plain venv instead of conda. Needs a C++14 compiler (g++) on PATH to build c_clause,
+# and a JDK 11+ for the offline rule-learning step.
+pybind11>=2.10
+git+https://github.com/symbolic-kg/PyClause.git

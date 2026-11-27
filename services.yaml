@@ -18,6 +18,12 @@ services:
     port: 8102
     env: modules/anyburl_safran/environment.yml
     start: python modules/anyburl_safran/api.py
+  pyclause:
+    kind: module
+    display_name: PyClause
+    port: 8104
+    env: modules/pyclause/environment.yml
+    start: conda run --no-capture-output -n kgx-pyclause python modules/pyclause/api.py
   # Other teammates add their modules here, e.g.:
   # expath:
   #   kind: module

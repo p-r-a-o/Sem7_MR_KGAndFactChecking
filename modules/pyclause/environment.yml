@@ -1,0 +1,16 @@
+# PyClause compiles a C++14 extension (c_clause) at install time and drives Java rule learners
+# (AnyBURL / AMIE) for the offline learning step, so this env needs a C++ compiler and a JDK.
+#   conda env create -f modules/pyclause/environment.yml
+#   conda activate kgx-pyclause
+name: kgx-pyclause
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - openjdk=17          # rule learning only; serving needs no Java
+  - cxx-compiler        # remove if you prefer the system g++ (sudo apt install build-essential)
+  - pip:
+      - pybind11>=2.10
+      - pytest
+      - git+https://github.com/symbolic-kg/PyClause.git
