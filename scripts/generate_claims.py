@@ -5,6 +5,17 @@ Negative claims: a true triple with head OR tail swapped for a "type-consistent"
 appears in that same position of the same relation in TRAIN, and such that the result is in no split.
 
 Usage: python scripts/generate_claims.py --dataset fb15k237 --split test --n 1000 --neg-per-pos 1
+
+Hard negatives: `--neg-mode frequency` draws the replacement entity in proportion to how often it fills
+that slot of the relation in TRAIN (the default `uniform` draws every pool entity equally often, so
+corrupted entities skew towards rare ones and a popularity-only classifier can spot them, see
+eval/eval_baselines.py). Write such a set next to the default one with `--tag hard`
+(-> data/claims/<dataset>/<split>_hard.jsonl); eval_cv.py reads it with `--tag hard`.
+Popularity-matching is not automatic: replacements always come from entities seen in TRAIN, whereas genuine
+held-out triples often involve entities with no train count in that slot, so power 1 can overshoot (negatives
+end up MORE popular than positives). Sweep `--freq-power` and keep the value whose popularity-only AUC in
+eval/eval_baselines.py is closest to 0.5. Popular replacements are also more likely to be true-but-unrecorded,
+so audit a sample of negatives by hand.
 """
 import argparse
 import json
@@ -30,28 +41,60 @@ def build_pools(train: list[Triple]) -> tuple[dict[str, list[str]], dict[str, li
     return ({r: sorted(v) for r, v in heads.items()}, {r: sorted(v) for r, v in tails.items()})
 
 
+def build_frequency_weights(train: list[Triple], head_pool: dict[str, list[str]], tail_pool: dict[str, list[str]],
+                            power: float = 1.0) -> tuple[dict[str, list[float]], dict[str, list[float]]]:
+    """relation -> training count ** power of each pool entity (aligned with `build_pools` order).
+
+    power=1 draws in proportion to frequency, power=0 is the uniform draw, in between tempers the hubs.
+    """
+    head_counts: dict[str, dict[str, int]] = {}
+    tail_counts: dict[str, dict[str, int]] = {}
+    for h, r, t in train:
+        head_counts.setdefault(r, {}).setdefault(h, 0)
+        head_counts[r][h] += 1
+        tail_counts.setdefault(r, {}).setdefault(t, 0)
+        tail_counts[r][t] += 1
+    return ({r: [head_counts[r][e] ** power for e in pool] for r, pool in head_pool.items()},
+            {r: [tail_counts[r][e] ** power for e in pool] for r, pool in tail_pool.items()})
+
+
 def corrupt(triple: Triple, head_pool: dict[str, list[str]], tail_pool: dict[str, list[str]],
-            known: set[Triple], rng: random.Random, max_tries: int = 50) -> Optional[tuple[Triple, str]]:
-    """Swap head or tail for a type-consistent entity so the result is in no split. None if impossible."""
+            known: set[Triple], rng: random.Random, max_tries: int = 50,
+            head_weights: Optional[dict[str, list[float]]] = None,
+            tail_weights: Optional[dict[str, list[float]]] = None) -> Optional[tuple[Triple, str]]:
+    """Swap head or tail for a type-consistent entity so the result is in no split. None if impossible.
+
+    Without weights the replacement is uniform over the pool; with weights (see `build_frequency_weights`)
+    it is drawn in proportion to the entity's training frequency in that slot.
+    """
     h, r, t = triple
+
+    def pick(pool: list[str], weights: Optional[dict[str, list[float]]]) -> str:
+        return rng.choice(pool) if weights is None else rng.choices(pool, weights=weights[r])[0]
+
     for _ in range(max_tries):
         side = rng.choice(("head", "tail"))
         if side == "head":
-            cand = (rng.choice(head_pool[r]), r, t)
+            cand = (pick(head_pool[r], head_weights), r, t)
         else:
-            cand = (h, r, rng.choice(tail_pool[r]))
+            cand = (h, r, pick(tail_pool[r], tail_weights))
         if cand not in known and cand[0] != cand[2]:
             return cand, side
     return None
 
 
 def generate(kg: KnowledgeGraph, split: str, n: int, neg_per_pos: int, seed: int,
-             require_labels: bool) -> list[dict]:
+             require_labels: bool, neg_mode: str = "uniform", freq_power: float = 1.0) -> list[dict]:
     rng = random.Random(seed)
     triples = list(getattr(kg, split))
     rng.shuffle(triples)
     known = set(kg.train) | set(kg.valid) | set(kg.test)
     head_pool, tail_pool = build_pools(kg.train)
+    head_weights = tail_weights = None
+    if neg_mode == "frequency":
+        head_weights, tail_weights = build_frequency_weights(kg.train, head_pool, tail_pool, freq_power)
+    elif neg_mode != "uniform":
+        raise ValueError("neg_mode must be 'uniform' or 'frequency'")
     # Ambiguous lemmas get a parenthetical gloss, so the claim text actually identifies the
     # entity it was generated from (see common/verbalize.disambiguated_labels).
     surfaces = disambiguated_labels(kg.entity_labels, kg.entity_descriptions)
@@ -69,7 +112,8 @@ def generate(kg: KnowledgeGraph, split: str, n: int, neg_per_pos: int, seed: int
             continue
         negs = []
         for _ in range(neg_per_pos):
-            out = corrupt(pos, head_pool, tail_pool, known, rng)
+            out = corrupt(pos, head_pool, tail_pool, known, rng,
+                          head_weights=head_weights, tail_weights=tail_weights)
             if out and readable(out[0][0]) and readable(out[0][2]):
                 negs.append(out)
         if len(negs) < neg_per_pos:
@@ -97,12 +141,19 @@ if __name__ == "__main__":
     ap.add_argument("--n", type=int, default=1000, help="number of positive claims")
     ap.add_argument("--neg-per-pos", type=int, default=1)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--neg-mode", choices=["uniform", "frequency"], default="uniform",
+                    help="how replacement entities are drawn; 'frequency' gives harder, popularity-matched negatives")
+    ap.add_argument("--freq-power", type=float, default=1.0,
+                    help="with --neg-mode frequency: weight = train count ** power (0 = uniform). Pick the power "
+                         "whose popularity-only AUC in eval_baselines.py is closest to 0.5")
+    ap.add_argument("--tag", default=None, help="write <split>_<tag>.jsonl instead of <split>.jsonl (e.g. hard)")
     ap.add_argument("--allow-unlabeled", action="store_true", help="keep entities that have no readable name")
     args = ap.parse_args()
 
     graph = load_graph(args.dataset)
-    recs = generate(graph, args.split, args.n, args.neg_per_pos, args.seed, not args.allow_unlabeled)
-    out_path = claims_dir(args.dataset) / f"{args.split}.jsonl"
+    recs = generate(graph, args.split, args.n, args.neg_per_pos, args.seed, not args.allow_unlabeled,
+                    args.neg_mode, args.freq_power)
+    out_path = claims_dir(args.dataset) / f"{args.split}{'_' + args.tag if args.tag else ''}.jsonl"
     write_jsonl(recs, out_path)
     print(f"Wrote {len(recs)} claims to {out_path}")
     if not recs:

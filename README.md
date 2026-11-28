@@ -15,7 +15,8 @@ modules/anyburl_safran/  AnyBURL rule mining + rule application in Python - see 
 modules/pyclause/        PyClause rule learning + C++ rule application with groundings - see its README
 modules/expath/          eXpath path/closed-path-rule reasoning (numpy/scipy) + FactKG claims + DBpedia node addition
 app/streamlit_app.py     UI (talks to modules via registry only)
-eval/                    eval_lp.py, eval_cv.py (via the HTTP API)
+eval/                    eval_lp.py, eval_cv.py (via the HTTP API); eval_baselines.py, analyze_cv.py,
+                         compare_modules.py (see "Evaluation toolkit")
 scripts/                 download_data, generate_claims, start_services
 tests/                   pure-logic tests
 ```
@@ -33,6 +34,32 @@ pip install -r app/requirements.txt && streamlit run app/streamlit_app.py
 python eval/eval_lp.py --module PowerLink --dataset fb15k237 --n 200
 python eval/eval_cv.py --module PowerLink --dataset fb15k237 --split valid --n 200
 ```
+
+## Evaluation toolkit
+All metric code is stdlib-only and lives in `common/` (`stats`, `cv_metrics`, `lp_metrics`, `baselines`,
+`ensemble`), so modules in other environments can reuse it. Every number below carries a bootstrap CI when
+`--bootstrap N` is given.
+```bash
+# 0. Reasoning-free floors (no services needed). Run these first.
+python eval/eval_baselines.py --dataset fb15k237 --split test --tune-split valid --n 2000
+# 1. Link prediction: raw AND standard filtered ranks, several query samples, per-category breakdown
+python eval/eval_lp.py --module AnyBURL+SAFRAN --dataset fb15k237 --n 500 --seeds 0 1 2 \
+    --out lp_a.json --dump-queries lp_a_q.jsonl
+# 2. Claim verification: + balanced acc, macro-F1, ROC-AUC, AP, ECE, Brier, AURC, coverage
+python eval/eval_cv.py --module AnyBURL+SAFRAN --dataset fb15k237 --split test --n 1000 --out cv_a.jsonl
+python eval/analyze_cv.py cv_a.jsonl --dataset fb15k237 --calibrate-from cv_a_valid.jsonl
+# 3. Several modules on identical claims/queries: complementarity, kappa, McNemar, vote/cascade ensembles
+python eval/compare_modules.py cv A=cv_a.jsonl B=cv_b.jsonl --cascade A B
+python eval/compare_modules.py lp A=lp_a_q.jsonl B=lp_b_q.jsonl
+# 4. AnyBURL+SAFRAN ablations (aggregation, smoothing, rule kind/length, rule budget, edge dropout, ...)
+python modules/anyburl_safran/scripts/ablate.py --dataset fb15k237 --split valid
+# 5. Harder negatives: popularity-matched corruption; pick --freq-power with eval_baselines.py's prior AUC ~ 0.5
+python scripts/generate_claims.py --dataset fb15k237 --split test --neg-mode frequency --freq-power 1.5 --tag hard
+python eval/eval_cv.py --module AnyBURL+SAFRAN --dataset fb15k237 --tag hard --out cv_a_hard.jsonl
+```
+Reading the numbers: `support score` (0.5 +/- 0.5 x confidence, see `common/cv_metrics.py`) puts every module on
+one scale for AUC/calibration/selective prediction; compare MRR across modules only on the `filtered`
+ranks; and report each module next to the popularity baselines of step 0.
 
 ## Status
 | Part | State |
