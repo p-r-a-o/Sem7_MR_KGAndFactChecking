@@ -56,6 +56,9 @@ class VerdictConfig:
     """Claim-verification thresholds, chosen on VALID claims only (see README, Measured)."""
     support: float = 0.5             # triple mode: eXpath confidence for (h, r, t) at or above this -> SUPPORTED
                                      # (0.5 = best F1 of {0.3, 0.5, 0.7, 0.85} on FB15k-237 valid claims)
+    support_by_dataset: dict = field(default_factory=lambda: {"wn18rr": 0.02})
+                                     # WN18RR valid claims, F1 at 0.02/0.05/0.1/0.2/0.3/0.5/0.7/0.85:
+                                     # 0.697/0.675/0.658/0.618/0.608/0.595/0.551/0.515 (precision ~0.98 at all)
     link_support: float = 0.3        # multi-entity mode: confidence for a rule-inferred link between claim entities
     refute_alt: float = 0.5          # REFUTED if t is unproven but an alternative answer has this confidence
     functional_ratio: float = 0.9    # relation counts as functional if this share of heads has a single tail

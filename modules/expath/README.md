@@ -19,6 +19,11 @@ pip install -r modules/expath/requirements.txt
 # FB15k-237 (link prediction)
 python scripts/download_data.py --dataset fb15k237
 python modules/expath/scripts/mine_rules.py --dataset fb15k237         # ~25 min on a laptop CPU
+# WN18RR (link prediction + claim verification)
+python scripts/download_data.py --dataset wn18rr
+python modules/expath/scripts/mine_rules.py --dataset wn18rr           # seconds
+python scripts/generate_claims.py --dataset wn18rr --split valid --n 300
+python scripts/generate_claims.py --dataset wn18rr --split test  --n 300
 # FactKG + DBpedia (claim verification). Download the FactKG Google Drive folder
 # (https://github.com/jiho283/FactKG) into data/factkg_raw/: factkg.zip (unzip it) and
 # dbpedia_2015_undirected_light.pickle (1.5 GB). The 5.5 GB full graph is not needed.
@@ -160,6 +165,45 @@ Requiring a proof costs almost nothing (MRR 0.259 vs 0.260): unprovable candidat
 queries dropped any). All 481 predictions of 100 random queries passed
 `check_explanation`. (The MRR 0.365 above is the full filtered ranking; this table hides only train-known
 answers and counts top-10 only, like every module's `eval_lp.py` numbers.)
+
+### WN18RR
+1,068 rules mined in 3 s (410 CP, 658 Uc). Base model: ComplEx trained on Kaggle with eXpath's own
+`complex_WN18RR` settings (dimension 500, 100 epochs; `scripts/kaggle_train_complex.py` with
+`DATASET = "WN18RR"`). Kaggle test: MRR 0.4787, H@1 0.4332, H@10 0.5689; our numpy scorer reproduces
+it exactly (full filtered ranking, 3,134 test triples x 2, 0 unmapped names). Same protocols as above.
+
+| LP (200 test triples, both directions, k=10) | MRR | Hits@1 | Hits@3 | Hits@10 | tail / head MRR |
+|---|---|---|---|---|---|
+| KGE alone (no proofs, `--allow-unproven`) | 0.458 | 0.420 | 0.480 | 0.545 | 0.478 / 0.437 |
+| **eXpath KGE mode (every answer proven)** | **0.442** | 0.410 | 0.463 | 0.508 | 0.456 / 0.428 |
+| eXpath rules mode | 0.434 | 0.400 | 0.463 | 0.490 | 0.462 / 0.406 |
+| AnyBURL+SAFRAN (its README) | 0.431 | 0.403 | | 0.487 | 0.454 / 0.407 |
+
+Requiring a proof costs more here than on FB15k-237 (MRR -0.016 vs -0.001): many WN18RR answers have no
+path of length <= 3 to the query entity (see recall below), so eXpath drops them instead of answering
+with a bare score. KGE mode: ~0.15 s/query; rules mode: 12 ms/query.
+
+| CV (600 test claims) | accuracy | F1 | precision | recall |
+|---|---|---|---|---|
+| eXpath, end to end through the claim parser | 0.773 | 0.711 | 0.982 | 0.557 |
+| eXpath, from gold triples | 0.778 | 0.719 | 0.983 | 0.567 |
+| AnyBURL+SAFRAN, gold triples (its README, 500 *valid* claims) | 0.812 | 0.780 | 0.960 | 0.657 |
+
+CV does not use the KGE (it proves the claimed triple directly), so these hold in both modes.
+Accuracy above counts NOT_ENOUGH_INFO as "not supported" (REFUTED). The team's newer `eval/eval_cv.py`
+counts it as wrong by default: same run, accuracy 0.643 [95% CI 0.605-0.682], F1 0.711, precision 0.982,
+recall 0.557, ROC-AUC 0.883, coverage 0.742 (selective accuracy 0.867 on the 445 claims with a verdict).
+The newer `eval/eval_lp.py` reproduces the LP numbers exactly (MRR 0.442 [0.394-0.487], Hits@10 0.508)
+and adds the standard filtered MRR: 0.451.
+All 91 KGE-mode LP predictions of 40 random test queries (89 in rules mode) and all CV proofs passed
+`check_explanation`.
+CV threshold: `support` 0.02 for WN18RR, best F1 on the 600 valid claims of
+{0.02, 0.05, 0.1, 0.2, 0.3, 0.5, 0.7, 0.85} (F1 0.697 ... 0.515; precision ~0.98 throughout), i.e. any rule
+that passes eXpath's SC/HC filters with support >= 2 counts as proof. FB15k-237 keeps 0.5.
+**Why recall is the limit:** of the 300 true valid claims, 107 have no path of length <= 3 between the two
+entities at all (71 of them `_hypernym`), so a path/rule-based proof cannot exist; AnyBURL's acyclic
+rules with constants cover some of those. Mining 25x more samples per relation (5,000) added ~100 CP
+rules and changed valid accuracy by 0.000, so the rule set is not the bottleneck.
 
 **Run `eval_lp.py` against a server started without `--show-known`.** `services.yaml` starts eXpath with
 `--show-known` so the app lists the graph's stored answers first (marked "already in the knowledge graph").

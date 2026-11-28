@@ -1,13 +1,15 @@
-"""Self-contained: train eXpath's ComplEx on FB15k-237 on Kaggle (or Colab) and export it for this module.
+"""Self-contained: train eXpath's ComplEx on Kaggle (or Colab) and export it for this module.
 
-Paste this whole file into ONE Kaggle notebook cell (Settings -> Accelerator -> GPU, Internet -> On) and run.
-It needs nothing from our repo. Output: /kaggle/working/kge_fb15k237.zip (~120 MB) containing
-    entity_emb.npy  relation_emb.npy  meta.json
-Download it and unzip into  artifacts/expath/fb15k237/kge/  on the serving machine (numpy only there).
+Set DATASET below ("FB15k-237" or "WN18RR"), paste this whole file into ONE Kaggle notebook cell
+(Settings -> Accelerator -> GPU, Internet -> On) and run. It needs nothing from our repo.
+Output: /kaggle/working/kge_<dataset>.zip containing  entity_emb.npy  relation_emb.npy  meta.json
+Download it and unzip into  artifacts/expath/<dataset>/kge/  on the serving machine (numpy only there),
+e.g. artifacts/expath/fb15k237/kge/ or artifacts/expath/wn18rr/kge/.
 
-Training is eXpath's unmodified train.py with its own config.yaml settings for complex_FB15k-237
-(dimension 1000, Adagrad, lr 0.1, batch 1000, 100 epochs; the eXpath README reports test MRR 0.365).
-eXpath's FB15k-237 files are byte-identical to ours, so IDs line up one-to-one.
+Training is eXpath's unmodified train.py with its own config.yaml settings:
+  complex_FB15k-237: dimension 1000, Adagrad, lr 0.1, batch 1000, 100 epochs (eXpath README: test MRR 0.365)
+  complex_WN18RR:    dimension 500,  Adagrad, lr 0.1, batch 500,  100 epochs
+eXpath's FB15k-237 and WN18RR files are byte-identical to ours, so IDs line up one-to-one.
 """
 import json
 import os
@@ -17,8 +19,8 @@ import zipfile
 
 WORK = "/kaggle/working" if os.path.isdir("/kaggle/working") else os.getcwd()
 REPO = os.path.join(WORK, "expath-ref")
-OUT = os.path.join(WORK, "kge_fb15k237")
-DATASET = "FB15k-237"
+DATASET = "FB15k-237"          # or "WN18RR"
+OUT = os.path.join(WORK, "kge_" + {"FB15k-237": "fb15k237", "WN18RR": "wn18rr"}[DATASET])
 
 if not os.path.isdir(REPO):
     subprocess.run(["git", "clone", "https://github.com/cs-anonymous/eXpath.git", REPO], check=True)

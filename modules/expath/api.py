@@ -41,6 +41,7 @@ def main() -> None:
     cfg.reasoning.aggregation = args.aggregation
     if args.support is not None:
         cfg.verdict.support = args.support
+        cfg.verdict.support_by_dataset = {}      # an explicit --support applies to every dataset
     if args.relevance is not None:
         cfg.verdict.relation_relevance = cfg.verdict.path_relevance = args.relevance
     if args.hop_relevance is not None:

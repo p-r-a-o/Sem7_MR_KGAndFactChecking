@@ -30,4 +30,10 @@ services:
     port: 8104
     env: modules/pyclause/environment.yml
     start: conda run --no-capture-output -n kgx-pyclause python modules/pyclause/api.py
+  pgr:
+    kind: module
+    display_name: PGR
+    port: 8105
+    env: stdlib only (needs GEMINI_API_KEY)
+    start: python modules/pgr/api.py
   # Other teammates add their modules here.

@@ -1,4 +1,4 @@
-# Explainable KG reasoning (shared scaffolding + PowerLink, AnyBURL+SAFRAN, PyClause and eXpath modules)
+# Explainable KG reasoning (shared scaffolding + PowerLink, AnyBURL+SAFRAN, PyClause, eXpath and PGR modules)
 
 Implements everything in `HANDOFF.md` except the Graph-RAG module.
 Teammates add a module by implementing `common/api.py:ReasoningModule` behind `modules/<name>/api.py`
@@ -14,6 +14,7 @@ modules/powerlink/       PowerLink wrapper (own conda env) - see its README
 modules/anyburl_safran/  AnyBURL rule mining + rule application in Python - see its README
 modules/pyclause/        PyClause rule learning + C++ rule application with groundings - see its README
 modules/expath/          eXpath path/closed-path-rule reasoning (numpy/scipy) + FactKG claims + DBpedia node addition
+modules/pgr/             PGR: LLM-written graph reasoning programs for FactKG claims (free Gemini API, stdlib only)
 app/streamlit_app.py     UI (talks to modules via registry only)
 eval/                    eval_lp.py, eval_cv.py (via the HTTP API); eval_baselines.py, analyze_cv.py,
                          compare_modules.py (see "Evaluation toolkit")
@@ -61,13 +62,52 @@ Reading the numbers: `support score` (0.5 +/- 0.5 x confidence, see `common/cv_m
 one scale for AUC/calibration/selective prediction; compare MRR across modules only on the `filtered`
 ranks; and report each module next to the popularity baselines of step 0.
 
+## Running the app with eXpath and PGR
+Prerequisites: the eXpath data and artifacts (see `modules/expath/README.md`: FB15k-237 / WN18RR /
+FactKG data, mined rules, optional KGE), and for PGR a Gemini API key (see `modules/pgr/README.md`).
+Commands are for PowerShell, from the repo root, with the project's Python environment active.
+
+**Terminal 1: claim parser + eXpath + PGR**
+```powershell
+$env:GEMINI_API_KEY = "<your key>"      # PGR only; never commit it. Optional: $env:PGR_MODEL, $env:PGR_REASONING = "low"
+python scripts/start_services.py claim_parser expath pgr
+```
+This starts each service's `start:` line from `services.yaml`: claim parser on 8100, eXpath on 8103
+(with `--show-known`), PGR on 8105. For **node addition** (eXpath fetching missing DBpedia facts), leave
+`expath` out of that command and start it yourself in another terminal instead:
+`python modules/expath/api.py --show-known --enrich` (needs internet). Don't run both: same port.
+
+**Terminal 2: the app**
+```powershell
+python -m streamlit run app/streamlit_app.py     # opens http://localhost:8501
+```
+(`python -m streamlit` also works where an application-control policy blocks `streamlit.exe`.)
+
+**In the app** (sidebar: Module, Dataset):
+
+| Module | Dataset | Link prediction tab | Claim verification tab |
+|---|---|---|---|
+| eXpath | fb15k237, wn18rr | ranked answers, each with a rule + facts as proof; answers already in the graph listed first | parser turns the claim into a triple; verdict + proof (needs the claim parser) |
+| eXpath | factkg | stored answers only (no rules mined for FactKG) | verdict + proof; paste a FactKG claim exactly, or type your own |
+| PGR | factkg | not supported (claim verification only) | the LLM-written program, each step's result and the graph facts it matched; FactKG claims only (sample list or pasted exactly) |
+
+Switch between eXpath and PGR in the sidebar to compare them on the same claim. Modules whose service is
+not running (PowerLink, AnyBURL+SAFRAN, PyClause, unless started) show an error in the sidebar; that is
+expected.
+
+**Memory:** FactKG is large: the app and each server that has it loaded hold their own copy (~4 GB each).
+With the app, eXpath and PGR all on factkg that is ~12 GB, so close other programs on a 16 GB machine.
+The first switch to factkg takes a minute or two per server; select it once before presenting.
+FB15k-237 and WN18RR are much smaller and load in seconds.
+
 ## Status
 | Part | State |
 |------|-------|
 | `common/`, `services/claim_parser`, `scripts/`, `eval/`, `app/` | written; exercised end-to-end by the AnyBURL+SAFRAN module (data download, claim generation, both eval scripts, both HTTP endpoints) |
 | `modules/anyburl_safran/` | **run end-to-end on FB15k-237 and WN18RR**, LP + CV, tuned; see its README for measured numbers |
 | `modules/powerlink/` | integration-tested on a synthetic KG (`modules/powerlink/scripts/smoke_test.py`); not yet trained/evaluated on FB15k-237 or WN18RR, see its README |
-| `modules/expath/` | **run end-to-end**: LP on FB15k-237, CV on FactKG (and FB15k-237 via the shared parser); see its README |
+| `modules/expath/` | **run end-to-end**: LP on FB15k-237 and WN18RR, CV on FactKG, FB15k-237 and WN18RR; see its README |
+| `modules/pgr/` | **run on FactKG** with free Gemini models: 257 balanced test claims, accuracy 0.907 (eXpath on the same claims: 0.856); see its README |
 | `modules/graph_rag/` | not started |
 
 ## Deviations from HANDOFF.md to confirm with the team

@@ -259,9 +259,10 @@ class ExpathModule:
 
         ev = explain_triple(g, st.rb, h, r, t, rc, self.cfg.quality, self.cfg.mining.row_chunk)
         claimed = f"**{g.hop_text((h, r, t))}**"
-        if ev.confidence >= vc.support:
+        support = vc.support_by_dataset.get(st.kg.name, vc.support)
+        if ev.confidence >= support:
             ex = triple_explanation(g, f"{claimed} is not stored, but eXpath infers it (confidence "
-                                       f"{ev.confidence:.2f} >= {vc.support}).", ev, rc.rules_shown, rc.critical_facts_shown)
+                                       f"{ev.confidence:.2f} >= {support}).", ev, rc.rules_shown, rc.critical_facts_shown)
             return CVResult(claim, triple, "SUPPORTED", ev.confidence, ex)
 
         others = [x for x in g.neighbors_by_rel(h, r).tolist() if x != t]
@@ -286,7 +287,7 @@ class ExpathModule:
                         grounded, conf, rules_shown=rc.rules_shown)
                     return CVResult(claim, triple, "REFUTED", conf, ex)
 
-        ex = triple_explanation(g, f"{claimed}: eXpath confidence {ev.confidence:.2f} is below {vc.support} "
+        ex = triple_explanation(g, f"{claimed}: eXpath confidence {ev.confidence:.2f} is below {support} "
                                    f"and no conflicting fact was found.", ev, rc.rules_shown, rc.critical_facts_shown)
         if not ex.steps:
             ex.steps.append(ExplanationStep(triple=None, note=f"No proof for {claimed}; searched {ev.n_paths} paths."))
